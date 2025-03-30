@@ -1,4 +1,5 @@
 import boto3
+import os
 from os import getenv
 from dotenv import load_dotenv
 import logging
@@ -176,3 +177,121 @@ def download_file_and_upload_to_s3(aws_s3_client, bucket_name, url, file_name, k
     #    You could also set the object's ACL to public-read or configure your bucket policy for public access.
     region = "us-west-2"  # Or fetch from env/config
     return f"https://s3-{region}.amazonaws.com/{bucket_name}/{file_name}"
+
+
+def upload_file(aws_s3_client, filename, bucket_name, object_name):
+    """Upload a file to S3 by filename"""
+    try:
+        aws_s3_client.upload_file(filename, bucket_name, object_name)
+        return True
+    except ClientError as e:
+        logging.error(f"Error uploading file: {e}")
+        return False
+
+
+def upload_file_obj(aws_s3_client, filename, bucket_name, object_name):
+    """Upload a file to S3 using a file object"""
+    try:
+        with open(filename, "rb") as file:
+            aws_s3_client.upload_fileobj(file, bucket_name, object_name)
+        return True
+    except ClientError as e:
+        logging.error(f"Error uploading file object: {e}")
+        return False
+
+
+def upload_file_put(aws_s3_client, filename, bucket_name, object_name):
+    """Upload a file to S3 using put_object (manually reading file content)"""
+    try:
+        with open(filename, "rb") as file:
+            aws_s3_client.put_object(
+                Bucket=bucket_name,
+                Key=object_name,
+                Body=file.read()
+            )
+        return True
+    except ClientError as e:
+        logging.error(f"Error uploading with put_object: {e}")
+        return False
+
+
+def multipart_upload(aws_s3_client, bucket_name, filename, object_name, part_size=1024 * 1024 * 5):
+    """
+    Perform multipart upload to S3.
+
+    :param aws_s3_client: Initialized boto3 S3 client
+    :param bucket_name: Target bucket name
+    :param filename: Local file to upload
+    :param object_name: Desired S3 object key
+    :param part_size: Size of each part in bytes (default 5MB)
+    """
+    try:
+        mpu = aws_s3_client.create_multipart_upload(Bucket=bucket_name, Key=object_name)
+        mpu_id = mpu["UploadId"]
+
+        parts = []
+        uploaded_bytes = 0
+        total_bytes = os.stat(filename).st_size
+
+        with open(filename, "rb") as f:
+            part_number = 1
+            while True:
+                data = f.read(part_size)
+                if not data:
+                    break
+                part = aws_s3_client.upload_part(
+                    Body=data,
+                    Bucket=bucket_name,
+                    Key=object_name,
+                    UploadId=mpu_id,
+                    PartNumber=part_number
+                )
+                parts.append({"PartNumber": part_number, "ETag": part["ETag"]})
+                uploaded_bytes += len(data)
+                print(f"{uploaded_bytes} of {total_bytes} bytes uploaded.")
+                part_number += 1
+
+        result = aws_s3_client.complete_multipart_upload(
+            Bucket=bucket_name,
+            Key=object_name,
+            UploadId=mpu_id,
+            MultipartUpload={"Parts": parts}
+        )
+        return result
+    except ClientError as e:
+        logging.error(f"Multipart upload failed: {e}")
+        return False
+
+
+def put_lifecycle_policy(aws_s3_client, bucket_name, prefix="", expiration_days=120):
+    """
+    Create or update a lifecycle policy to expire objects after expiration_days.
+
+    :param aws_s3_client: boto3 S3 client
+    :param bucket_name: Name of the bucket
+    :param prefix: Optional object key prefix to filter objects
+    :param expiration_days: Number of days before objects expire
+    """
+
+    lifecycle_configuration = {
+        "Rules": [
+            {
+                "ID": "devobjects",
+                "Filter": {"Prefix": prefix} if prefix else {},
+                "Status": "Enabled",
+                "Expiration": {"Days": expiration_days}
+            }
+        ]
+    }
+
+    try:
+        aws_s3_client.put_bucket_lifecycle_configuration(
+            Bucket=bucket_name,
+            LifecycleConfiguration=lifecycle_configuration
+        )
+        print("Lifecycle policy 'devobjects' applied successfully.")
+        return True
+    except ClientError as e:
+        logging.error(f"Failed to apply lifecycle policy: {e}")
+        return False
+

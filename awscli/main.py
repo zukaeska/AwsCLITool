@@ -138,5 +138,89 @@ def download_and_upload(
         typer.echo("Failed to initialize AWS S3 Client.")
 
 
+@app.command()
+def upload_file(
+    filename: str = typer.Argument(..., help="Local file path to upload"),
+    bucket_name: str = typer.Argument(..., help="Target S3 bucket name"),
+    object_name: str = typer.Argument(..., help="S3 object name (key)"),
+    env_path: str = typer.Option(".env", help="Path to .env file")
+):
+    client = s3.init_client(env_path)
+    if client:
+        if s3.upload_file(client, filename, bucket_name, object_name):
+            typer.echo("File uploaded successfully using upload_file()")
+        else:
+            typer.echo("Upload failed.")
+
+
+@app.command()
+def upload_file_obj(
+    filename: str = typer.Argument(..., help="Local file path to upload"),
+    bucket_name: str = typer.Argument(..., help="Target S3 bucket name"),
+    object_name: str = typer.Argument(..., help="S3 object name (key)"),
+    env_path: str = typer.Option(".env", help="Path to .env file")
+):
+    client = s3.init_client(env_path)
+    if client:
+        if s3.upload_file_obj(client, filename, bucket_name, object_name):
+            typer.echo("File uploaded successfully using upload_file_obj()")
+        else:
+            typer.echo("Upload failed.")
+
+
+@app.command()
+def upload_file_put(
+    filename: str = typer.Argument(..., help="Local file path to upload"),
+    bucket_name: str = typer.Argument(..., help="Target S3 bucket name"),
+    object_name: str = typer.Argument(..., help="S3 object name (key)"),
+    env_path: str = typer.Option(".env", help="Path to .env file")
+):
+    client = s3.init_client(env_path)
+    if client:
+        if s3.upload_file_put(client, filename, bucket_name, object_name):
+            typer.echo("File uploaded successfully using upload_file_put()")
+        else:
+            typer.echo("Upload failed.")
+
+@app.command()
+def multipart_upload(
+    filename: str = typer.Argument(..., help="Local file to upload"),
+    bucket_name: str = typer.Argument(..., help="Target S3 bucket name"),
+    object_name: str = typer.Argument(..., help="S3 object name (key)"),
+    part_size_mb: int = typer.Option(5, help="Part size in MB (default = 5MB)"),
+    env_path: str = typer.Option(".env", help="Path to .env file")
+):
+    """Perform multipart upload to S3"""
+    client = s3.init_client(env_path)
+    if client:
+        part_size_bytes = part_size_mb * 1024 * 1024
+        result = s3.multipart_upload(client, bucket_name, filename, object_name, part_size_bytes)
+        if result:
+            typer.echo("Multipart upload completed successfully.")
+            typer.echo(result)
+        else:
+            typer.echo("Multipart upload failed. Check logs for details.")
+    else:
+        typer.echo("Failed to initialize AWS S3 Client.")
+
+
+@app.command()
+def put_lifecycle_policy(
+    bucket_name: str = typer.Argument(..., help="Bucket name"),
+    expiration_days: int = typer.Option(120, help="Expiration period in days"),
+    prefix: str = typer.Option("", help="Prefix to limit objects (optional)"),
+    env_path: str = typer.Option(".env", help="Path to .env file")
+):
+    """Apply a lifecycle policy to automatically delete objects after expiration_days."""
+    client = s3.init_client(env_path)
+    if client:
+        if s3.put_lifecycle_policy(client, bucket_name, prefix, expiration_days):
+            typer.echo("Lifecycle policy applied successfully.")
+        else:
+            typer.echo("Failed to apply lifecycle policy.")
+    else:
+        typer.echo("Failed to initialize AWS S3 client.")
+
+
 if __name__ == "__main__":
     app()
