@@ -222,5 +222,22 @@ def put_lifecycle_policy(
         typer.echo("Failed to initialize AWS S3 client.")
 
 
+@app.command()
+def delete_object(
+    bucket_name: str = typer.Argument(..., help="Name of the bucket"),
+    object_key: str = typer.Argument(..., help="Key of the object (file) to delete"),
+    env_path: str = typer.Option(".env", help="Path to .env file")
+):
+    """Delete an object from an S3 bucket."""
+    client = s3.init_client(env_path)
+    if client:
+        if s3.delete_object(client, bucket_name, object_key):
+            typer.echo(f"Object '{object_key}' deleted successfully.")
+        else:
+            typer.echo("Failed to delete object. Check logs.")
+    else:
+        typer.echo("Failed to initialize AWS S3 client.")
+
+
 if __name__ == "__main__":
     app()

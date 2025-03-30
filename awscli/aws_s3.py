@@ -295,3 +295,20 @@ def put_lifecycle_policy(aws_s3_client, bucket_name, prefix="", expiration_days=
         logging.error(f"Failed to apply lifecycle policy: {e}")
         return False
 
+
+def delete_object(aws_s3_client, bucket_name, object_key):
+    """
+    Delete an object from an S3 bucket.
+
+    :param aws_s3_client: boto3 S3 client
+    :param bucket_name: The bucket name
+    :param object_key: The object (file) key to delete
+    """
+    try:
+        aws_s3_client.delete_object(Bucket=bucket_name, Key=object_key)
+        return True
+    except ClientError as e:
+        logging.error(f"Failed to delete object: {e}")
+        return False
+
+
