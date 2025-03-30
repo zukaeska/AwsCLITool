@@ -1,0 +1,28 @@
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyCharm project settings
+.idea/
+
+# Poetry files
+poetry.lock
+
+# Environment variables
+.env
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Logs, coverage and test artifacts
+*.log
+.cache/
+.pytest_cache/
+htmlcov/
