@@ -239,5 +239,63 @@ def delete_object(
         typer.echo("Failed to initialize AWS S3 client.")
 
 
+@app.command()
+def enable_versioning(
+    bucket_name: str = typer.Argument(..., help="Bucket name"),
+    env_path: str = typer.Option(".env", help="Path to .env file")
+):
+    """Enable versioning on a bucket."""
+    client = s3.init_client(env_path)
+    if client:
+        s3.enable_versioning(client, bucket_name)
+
+
+@app.command()
+def check_versioning(
+    bucket_name: str = typer.Argument(..., help="Bucket name"),
+    env_path: str = typer.Option(".env", help="Path to .env file")
+):
+    """Check if versioning is enabled on a bucket."""
+    client = s3.init_client(env_path)
+    if client:
+        s3.check_bucket_versioning(client, bucket_name)
+
+
+@app.command()
+def list_versions(
+    bucket_name: str = typer.Argument(..., help="Bucket name"),
+    object_key: str = typer.Argument(..., help="Object key"),
+    env_path: str = typer.Option(".env", help="Path to .env file")
+):
+    """List all versions of an object."""
+    client = s3.init_client(env_path)
+    if client:
+        s3.list_object_versions(client, bucket_name, object_key)
+
+
+@app.command()
+def restore_previous_version(
+    bucket_name: str = typer.Argument(..., help="Bucket name"),
+    object_key: str = typer.Argument(..., help="Object key"),
+    env_path: str = typer.Option(".env", help="Path to .env file")
+):
+    """Restore the previous version of an object as the latest version."""
+    client = s3.init_client(env_path)
+    if client:
+        s3.restore_previous_version(client, bucket_name, object_key)
+
+
+@app.command()
+def organize_files(
+    bucket_name: str = typer.Argument(..., help="Bucket name to organize"),
+    prefix: str = typer.Option("", help="Prefix for filtering files (optional)"),
+    env_path: str = typer.Option(".env", help="Path to .env file")
+):
+    """Organize files by extension into folders and show grouped counts."""
+    client = s3.init_client(env_path)
+    if client:
+        s3.organize_by_extension(client, bucket_name, prefix)
+
+
 if __name__ == "__main__":
     app()

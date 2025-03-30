@@ -312,3 +312,113 @@ def delete_object(aws_s3_client, bucket_name, object_key):
         return False
 
 
+def enable_versioning(aws_s3_client, bucket_name):
+    """Enable versioning on a bucket."""
+    try:
+        aws_s3_client.put_bucket_versioning(
+            Bucket=bucket_name,
+            VersioningConfiguration={"Status": "Enabled"}
+        )
+        print(f"Versioning enabled for bucket '{bucket_name}'.")
+        return True
+    except ClientError as e:
+        logging.error(f"Error enabling versioning: {e}")
+        return False
+
+
+def check_bucket_versioning(aws_s3_client, bucket_name):
+    """Check if versioning is enabled on a bucket."""
+    try:
+        response = aws_s3_client.get_bucket_versioning(Bucket=bucket_name)
+        status = response.get("Status", "Disabled")
+        print(f"Versioning status for bucket '{bucket_name}': {status}")
+        return status
+    except ClientError as e:
+        logging.error(f"Error checking versioning status: {e}")
+        return None
+
+
+def list_object_versions(aws_s3_client, bucket_name, object_key):
+    """List all versions of an object."""
+    try:
+        response = aws_s3_client.list_object_versions(Bucket=bucket_name, Prefix=object_key)
+        versions = response.get("Versions", [])
+        if versions:
+            print(f"Found {len(versions)} versions for '{object_key}':")
+            for v in versions:
+                print(f" - VersionId: {v['VersionId']}, IsLatest: {v['IsLatest']}, LastModified: {v['LastModified']}")
+            return versions
+        else:
+            print("No versions found.")
+            return []
+    except ClientError as e:
+        logging.error(f"Error listing object versions: {e}")
+        return []
+
+
+def restore_previous_version(aws_s3_client, bucket_name, object_key):
+    """Restore the previous version by re-uploading it as the latest version."""
+    try:
+        response = aws_s3_client.list_object_versions(Bucket=bucket_name, Prefix=object_key)
+        versions = response.get("Versions", [])
+        if len(versions) < 2:
+            print("No previous version to restore.")
+            return False
+
+        previous_version = versions[1]  # second latest
+        version_id = previous_version["VersionId"]
+
+        obj = aws_s3_client.get_object(Bucket=bucket_name, Key=object_key, VersionId=version_id)
+        content = obj["Body"].read()
+
+        aws_s3_client.put_object(Bucket=bucket_name, Key=object_key, Body=content)
+
+        print(f"Restored previous version of '{object_key}' as the latest version.")
+        return True
+
+    except ClientError as e:
+        logging.error(f"Error during restore: {e}")
+        return False
+
+
+def organize_by_extension(aws_s3_client, bucket_name, prefix=""):
+    """
+    Organize objects into folders based on file extensions.
+    Automatically creates folders like /csv/, /jpg/, etc.
+    Prints extension - number of files.
+    """
+    try:
+        response = aws_s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
+        if 'Contents' not in response:
+            print("No objects found.")
+            return
+
+        counts = {}
+
+        for obj in response['Contents']:
+            key = obj['Key']
+            if key.endswith("/"):
+                continue  # skip folders
+
+            # Extract extension
+            extension = key.split(".")[-1].lower() if "." in key else "no_extension"
+
+            # Count
+            counts[extension] = counts.get(extension, 0) + 1
+
+            # Move to folder
+            filename = key.split("/")[-1]
+            new_key = f"{extension}/{filename}"
+            aws_s3_client.copy_object(Bucket=bucket_name, CopySource={'Bucket': bucket_name, 'Key': key}, Key=new_key)
+            aws_s3_client.delete_object(Bucket=bucket_name, Key=key)
+            print(f"Moved {key} -> {new_key}")
+
+        print("\nSummary:")
+        for ext, count in counts.items():
+            print(f"{ext} - {count}")
+
+    except ClientError as e:
+        logging.error(f"Error during organization: {e}")
+
+
+
