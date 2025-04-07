@@ -1,5 +1,5 @@
 import typer
-import awscli.aws_s3 as s3  # simplified alias for convenience
+import awscli.aws_s3 as s3
 
 app = typer.Typer()
 
@@ -295,6 +295,28 @@ def organize_files(
     client = s3.init_client(env_path)
     if client:
         s3.organize_by_extension(client, bucket_name, prefix)
+
+
+@app.command()
+def smart_upload(
+    filename: str = typer.Argument(..., help="Local file to upload"),
+    bucket_name: str = typer.Argument(..., help="S3 bucket name"),
+    env_path: str = typer.Option(".env", help="Path to .env file")
+):
+    """
+    Uploads a file to an S3 bucket into a folder based on its MIME type (e.g., image/, text/, etc.)
+    """
+    client = s3.init_client(env_path)
+    if not client:
+        typer.echo("Failed to initialize AWS client.")
+        raise typer.Exit(code=1)
+
+    success, result = s3.smart_upload_file_with_mimetype(client, filename, bucket_name)
+
+    if success:
+        typer.echo(f"File uploaded successfully to '{result}'")
+    else:
+        typer.echo(f"Upload failed: {result}")
 
 
 if __name__ == "__main__":

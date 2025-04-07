@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import logging
 from botocore.exceptions import ClientError
 import json
+import magic
 
 
 def init_client(env_path: str = ".env"):
@@ -419,6 +420,34 @@ def organize_by_extension(aws_s3_client, bucket_name, prefix=""):
 
     except ClientError as e:
         logging.error(f"Error during organization: {e}")
+
+
+def smart_upload_file_with_mimetype(s3_client, filename, bucket_name):
+    """
+    Detect MIME type and upload file to S3 under a folder matching the top-level MIME type.
+    Example: image/photo.jpg → image/photo.jpg
+    """
+    if not os.path.exists(filename):
+        logging.error(f"File not found: {filename}")
+        return False, "File not found"
+
+    try:
+        mime_type = magic.from_file(filename, mime=True)
+        folder = mime_type.split("/")[0]
+        base_name = os.path.basename(filename)
+        s3_key = f"{folder}/{base_name}"
+
+        logging.info(f"Uploading {filename} as {s3_key} with MIME type {mime_type}")
+
+        success = upload_file_put(s3_client, filename, bucket_name, s3_key)
+        if success:
+            return True, s3_key
+        else:
+            return False, "Upload failed"
+
+    except Exception as e:
+        logging.error(f"smart_upload_file failed: {e}")
+        return False, str(e)
 
 
 
