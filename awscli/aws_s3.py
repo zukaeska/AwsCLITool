@@ -6,6 +6,7 @@ import logging
 from botocore.exceptions import ClientError
 import json
 import magic
+from datetime import datetime, timedelta, timezone
 
 
 def init_client(env_path: str = ".env"):
@@ -450,4 +451,71 @@ def smart_upload_file_with_mimetype(s3_client, filename, bucket_name):
         return False, str(e)
 
 
+def delete_old_versions(s3_client, bucket_name, object_key, months=6):
+    """
+    Deletes all versions of a specific object that are older than the given number of months.
+    """
+    try:
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=months * 30)
 
+        versions = s3_client.list_object_versions(Bucket=bucket_name, Prefix=object_key)
+
+        deleted = []
+        if "Versions" in versions:
+            for version in versions["Versions"]:
+                last_modified = version["LastModified"]
+                if last_modified < cutoff_date:
+                    s3_client.delete_object(
+                        Bucket=bucket_name,
+                        Key=object_key,
+                        VersionId=version["VersionId"]
+                    )
+                    deleted.append((version["VersionId"], last_modified))
+
+        return deleted
+
+    except Exception as e:
+        logging.error(f"Failed to delete old versions for {object_key}: {e}")
+        return []
+
+
+def host_static_html(s3_client, filename, bucket_name):
+    """
+    Upload index.html, enable public access, and configure static website hosting.
+    """
+    if not os.path.exists(filename):
+        logging.error(f"File not found: {filename}")
+        return False, "File not found"
+
+    try:
+        # Upload index.html with correct content type
+        with open(filename, "rb") as f:
+            s3_client.put_object(
+                Bucket=bucket_name,
+                Key="index.html",
+                Body=f,
+                ContentType="text/html"
+            )
+        logging.info("index.html uploaded successfully.")
+
+        # Enable public access using existing method
+        create_bucket_policy(s3_client, bucket_name)
+
+        # Enable static website hosting
+        s3_client.put_bucket_website(
+            Bucket=bucket_name,
+            WebsiteConfiguration={
+                "IndexDocument": {"Suffix": "index.html"},
+                "ErrorDocument": {"Key": "error.html"}
+            }
+        )
+        logging.info("Static website hosting enabled.")
+
+        return True
+
+    except ClientError as e:
+        logging.error(f"AWS error: {e}")
+        return False, str(e)
+    except Exception as e:
+        logging.error(f"Unexpected error: {e}")
+        return False, str(e)

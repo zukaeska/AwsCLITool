@@ -319,5 +319,54 @@ def smart_upload(
         typer.echo(f"Upload failed: {result}")
 
 
+@app.command()
+def clean_old_versions(
+    bucket_name: str = typer.Argument(..., help="S3 bucket name"),
+    object_keys: list[str] = typer.Argument(..., help="One or more object keys to clean"),
+    months: int = typer.Option(6, help="Delete versions older than this many months"),
+    env_path: str = typer.Option(".env", help="Path to .env file")
+):
+    """
+    Deletes versions of specified S3 objects that are older than the given number of months (default: 6).
+    """
+    client = s3.init_client(env_path)
+    if not client:
+        typer.echo("Failed to initialize AWS client.")
+        raise typer.Exit(code=1)
+
+    for key in object_keys:
+        typer.echo(f"Checking versions for: {key}")
+        deleted = s3.delete_old_versions(client, bucket_name, key, months)
+
+        if deleted:
+            typer.echo(f"Deleted {len(deleted)} old version(s) of '{key}':")
+            for version_id, last_modified in deleted:
+                typer.echo(f" - VersionId: {version_id}, Date: {last_modified}")
+        else:
+            typer.echo(f"No old versions found (or deleted) for '{key}'")
+
+
+@app.command()
+def host_website(
+    filename: str = typer.Argument(..., help="Path to index.html"),
+    bucket_name: str = typer.Argument(..., help="S3 bucket name"),
+    env_path: str = typer.Option(".env", help="Path to .env file")
+):
+    """
+    Upload index.html, enable public access, and configure S3 static website hosting.
+    """
+    client = s3.init_client(env_path)
+    if not client:
+        typer.echo("Failed to initialize AWS client.")
+        raise typer.Exit(code=1)
+
+    success = s3.host_static_html(client, filename, bucket_name)
+
+    if success:
+        typer.echo("Static website hosted successfully:")
+    else:
+        typer.echo(f"Operation failed")
+
+
 if __name__ == "__main__":
     app()
