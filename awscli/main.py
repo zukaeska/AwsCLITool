@@ -390,5 +390,43 @@ def host_site_with_source(
         typer.echo(f"Failed to host site")
 
 
+@app.command()
+def get_quote(
+    author: str = typer.Option(None, help="Author name for specific quote"),
+    save: bool = typer.Option(False, help="Save the quote as a .json file to S3"),
+    bucket_name: str = typer.Option(None, help="S3 bucket name to upload quote"),
+    env_path: str = typer.Option(".env", help="Path to .env file")
+):
+    success, quote = s3.get_quote(author)
+
+    if not success or "quote" not in quote:
+        typer.echo("Quote not found or API returned invalid data.")
+        raise typer.Exit(code=1)
+
+    try:
+        content = quote["quote"]["content"]
+        author_name = quote["quote"]["author"]["name"]
+        typer.echo(f"\"{content}\"\n— {author_name}")
+    except KeyError:
+        typer.echo("Unexpected response format from API.")
+        raise typer.Exit(code=1)
+
+    if save:
+        if not bucket_name:
+            typer.echo("Bucket name is required when using --save.")
+            raise typer.Exit(code=1)
+
+        client = s3.init_client(env_path)
+        if not client:
+            typer.echo("Failed to initialize AWS client.")
+            raise typer.Exit(code=1)
+
+        success, result = s3.save_quote_to_s3(client, bucket_name, quote["quote"])
+        if success:
+            typer.echo(f"Quote uploaded successfully to S3 as '{result}'")
+        else:
+            typer.echo(f"Failed to upload quote: {result}")
+
+
 if __name__ == "__main__":
     app()

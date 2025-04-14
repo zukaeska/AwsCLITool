@@ -569,3 +569,50 @@ def host_static_site_from_folder(s3_client, source_folder: str, bucket_name: str
     except ClientError as e:
         logging.error(f"Website config failed: {e}")
         return False, str(e)
+
+
+def get_quote(author: str = None):
+    """
+    Fetch a random quote or one by a specific author from quotable API.
+    """
+    from urllib.request import Request, urlopen
+    from urllib.parse import quote_plus
+
+    base_url = "https://api.quotable.kurokeita.dev/api/quotes/random"
+    if author:
+        author_encoded = quote_plus(author)
+        url = f"{base_url}?author={author_encoded}"
+    else:
+        url = base_url
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "Accept": "application/json",
+    }
+
+    try:
+        req = Request(url, headers=headers)
+        with urlopen(req) as response:
+            data = json.loads(response.read().decode())
+            return True, data
+    except Exception as e:
+        return False, str(e)
+
+
+def save_quote_to_s3(aws_s3_client, bucket_name: str, quote_data: dict):
+    """
+    Save quote data as a .json file to S3.
+    """
+    author = quote_data.get("author", {}).get("name", "unknown").replace(" ", "_")
+    file_key = f"quotes/{author}.json"
+
+    try:
+        aws_s3_client.put_object(
+            Bucket=bucket_name,
+            Key=file_key,
+            Body=json.dumps(quote_data, indent=4),
+            ContentType="application/json",
+        )
+        return True, file_key
+    except Exception as e:
+        return False, str(e)
