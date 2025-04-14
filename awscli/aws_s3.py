@@ -519,3 +519,53 @@ def host_static_html(s3_client, filename, bucket_name):
     except Exception as e:
         logging.error(f"Unexpected error: {e}")
         return False, str(e)
+
+
+def host_static_site_from_folder(s3_client, source_folder: str, bucket_name: str):
+    import mimetypes
+    from pathlib import Path
+    """
+    Upload all files from a local folder to an S3 bucket, configure it for static hosting.
+    """
+    folder_path = Path(source_folder)
+    if not folder_path.exists() or not folder_path.is_dir():
+        logging.error(f"Folder '{source_folder}' does not exist or is not a directory.")
+        return False, "Source folder not found"
+
+    # Upload files with proper MIME types and ACL
+    for file in folder_path.rglob("*"):
+        if file.is_file():
+            key = str(file.relative_to(folder_path)).replace("\\", "/")
+            content_type, _ = mimetypes.guess_type(str(file))
+            content_type = content_type or "binary/octet-stream"
+
+            try:
+                with open(file, "rb") as f:
+                    s3_client.put_object(
+                        Bucket=bucket_name,
+                        Key=key,
+                        Body=f,
+                        ContentType=content_type
+                    )
+                logging.info(f"Uploaded: {key}")
+            except Exception as e:
+                logging.error(f"Failed to upload '{key}': {e}")
+                return False, str(e)
+
+    # Set bucket policy and website config
+    try:
+        create_bucket_policy(s3_client, bucket_name)
+
+        s3_client.put_bucket_website(
+            Bucket=bucket_name,
+            WebsiteConfiguration={
+                "IndexDocument": {"Suffix": "index.html"},
+                "ErrorDocument": {"Key": "error.html"}
+            }
+        )
+
+        return True
+
+    except ClientError as e:
+        logging.error(f"Website config failed: {e}")
+        return False, str(e)

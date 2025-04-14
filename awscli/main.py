@@ -368,5 +368,27 @@ def host_website(
         typer.echo(f"Operation failed")
 
 
+@app.command()
+def host_site_with_source(
+    bucket_name: str = typer.Argument(..., help="S3 bucket name to host site on"),
+    source: str = typer.Argument(..., help="Path to folder containing static site"),
+    env_path: str = typer.Option(".env", help="Path to .env file")
+):
+    """
+    Upload a full static site from a local folder to S3 and configure static hosting.
+    """
+    client = s3.init_client(env_path)
+    if not client:
+        typer.echo("Failed to initialize AWS client.")
+        raise typer.Exit(code=1)
+
+    success = s3.host_static_site_from_folder(client, source, bucket_name)
+
+    if success:
+        typer.echo("Static site hosted successfully!")
+    else:
+        typer.echo(f"Failed to host site")
+
+
 if __name__ == "__main__":
     app()
