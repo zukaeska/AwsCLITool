@@ -26,3 +26,7 @@ Thumbs.db
 .cache/
 .pytest_cache/
 htmlcov/
+
+# idx.dev
+dev.nix
+.vscode
